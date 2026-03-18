@@ -1,0 +1,13 @@
+FROM python:3.13.12-slim-trixie
+
+WORKDIR /app
+
+RUN pip install grpcio grpcio-tools pyzmq
+
+COPY mensagens.proto .
+
+RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. mensagens.proto
+
+COPY cliente.py .
+
+CMD ["python", "cliente.py"]

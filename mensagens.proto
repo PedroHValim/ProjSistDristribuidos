@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package mensagens;
+
+message Requisicao {
+  string tipo = 1;
+  string usuario = 2;
+  int64 timestamp = 3;
+}
+
+message Resposta {
+  string mensagem = 1;
+}

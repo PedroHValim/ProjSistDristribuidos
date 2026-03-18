@@ -1,0 +1,37 @@
+services:
+
+  broker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: broker
+    volumes:
+      - ./broker.py:/app/main.py
+    ports:
+      - 5555:5555
+      - 5556:5556
+
+  servidor:
+    build:
+      context: .
+      dockerfile: Dockerfile_Server
+    volumes:
+      - ./servidor.py:/app/servidor.py
+    depends_on:
+      - broker
+    deploy:
+      replicas: 1
+
+  cliente:
+    build:
+      context: .
+      dockerfile: Dockerfile_Client
+    volumes:
+      - ./cliente.py:/app/cliente.py
+    depends_on:
+      - servidor
+    deploy:
+      replicas: 1
+    stdin_open: true
+    tty: true
