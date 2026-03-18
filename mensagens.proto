@@ -5,7 +5,8 @@ package mensagens;
 message Requisicao {
   string tipo = 1;
   string usuario = 2;
-  int64 timestamp = 3;
+  string canal = 3;
+  int64 timestamp = 4;
 }
 
 message Resposta {

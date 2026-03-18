@@ -8,7 +8,9 @@ socket.connect("tcp://broker:5556")
 usuarios_aceitos = ["Pedro Henrique","Leonardo","João","Matheus"]
 usuarios_logados = []
 
-canais = ["Canal1"]
+canais = {
+    "Canal1": []
+}
 
 while True:
     info = socket.recv()
@@ -29,7 +31,15 @@ while True:
         elif usuario not in usuarios_aceitos:
             resposta.mensagem = "Usuário inválido"
 
+    elif requisicao.tipo == "criar_canal":
+        canal = requisicao.canal
+        if canal in canais:
+            resposta.mensagem = "Canal já existe"
+        else:
+            canais[canal] = []
+            resposta.mensagem = f"Canal '{canal}' criado com sucesso"
+
     elif requisicao.tipo == "listar_canais":
-        print(canais)
+        resposta.mensagem = ", ".join(canais.keys())
 
     socket.send(resposta.SerializeToString())
