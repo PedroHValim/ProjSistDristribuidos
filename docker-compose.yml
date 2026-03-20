@@ -28,7 +28,7 @@ services:
       context: .
       dockerfile: Dockerfile_Client
     volumes:
-      - ./cliente.py:/app/cliente.py
+      - ./cliente.java:/app/cliente.java
     depends_on:
       - servidor
     deploy:

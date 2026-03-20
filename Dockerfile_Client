@@ -1,13 +1,23 @@
-FROM python:3.13.12-slim-trixie
+FROM maven:3.9-eclipse-temurin-21-slim AS builder
 
 WORKDIR /app
 
-RUN pip install grpcio grpcio-tools pyzmq
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 COPY mensagens.proto .
+RUN mkdir -p src/main/java
+RUN protoc --java_out=src/main/java mensagens.proto
 
-RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. mensagens.proto
+COPY Cliente.java src/main/java/
+RUN mvn package -q -DskipTests
 
-COPY cliente.py .
+FROM eclipse-temurin:21-jre-slim
 
-CMD ["python", "cliente.py"]
+WORKDIR /app
+
+COPY --from=builder /app/target/*.jar app.jar
+
+CMD ["java", "-jar", "app.jar"]
