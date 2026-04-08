@@ -17,6 +17,20 @@ public class Cliente {
             ZMQ.Socket sub = context.createSocket(ZMQ.SUB);
             sub.connect("tcp://pubsub-proxy:5558");
 
+            String[] canais = respostaLista.getMensagem().split(",");
+            List<String> inscritos = new ArrayList<>();
+
+            for (String canal : canais) {
+                canal = canal.trim();
+
+                if (!canal.isEmpty() && inscritos.size() < 3) {
+                    sub.subscribe(canal.getBytes());
+                    inscritos.add(canal);
+
+                    System.out.println("Inscrito no canal: " + canal);
+                }
+            }
+
             // ── THREAD PARA RECEBER MENSAGENS ─────────────────────
             new Thread(() -> {
                 while (!Thread.currentThread().isInterrupted()) {
@@ -113,7 +127,6 @@ public class Cliente {
 
                     String mensagem = "Msg " + random.nextInt(1000);
 
-                    // 🔹 USANDO O Publicacao CORRETAMENTE
                     Requisicao pubMsg = Requisicao.newBuilder()
                             .setTipo("publicar")
                             .setCanal(canalEscolhido)

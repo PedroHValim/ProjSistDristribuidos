@@ -20,6 +20,7 @@ services:
       - ./servidor.py:/app/servidor.py
     depends_on:
       - broker
+      - pubsub-proxy
     deploy:
       replicas: 2
 
@@ -37,6 +38,9 @@ services:
     tty: true
 
   pubsub-proxy:
+    build: 
+      context: .
+      dockerfile: Dockerfile_Proxy
     image: python:3.11
     container_name: pubsub-proxy
     command: python proxy.py
