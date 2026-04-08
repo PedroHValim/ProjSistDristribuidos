@@ -7,6 +7,13 @@ message Requisicao {
   string usuario = 2;
   string canal = 3;
   int64 timestamp = 4;
+
+  Publicacao pub = 5; // 🆕 opcional
+}
+
+message Publicacao {
+  string mensagem = 1;
+  int64 timestamp_envio = 2;
 }
 
 message Resposta {

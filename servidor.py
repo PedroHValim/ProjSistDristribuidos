@@ -5,12 +5,24 @@ context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.connect("tcp://broker:5556")
 
+pub_socket = context.socket(zmq.REP)
+pub_socket.connect("tcp://pubsub-proxy:5557")
+
 usuarios_aceitos = ["Pedro Henrique","Leonardo","João","Matheus"]
 usuarios_logados = []
 
 canais = {
     "Canal1": []
 }
+
+#---------------------------
+
+def salvar_publicacao(data):
+    with open("publicacoes.jsonl", "a") as f:
+        f.write(json.dumps(data) + "\n")
+
+
+#-------PRINCIPAL------------
 
 while True:
     info = socket.recv()
@@ -41,5 +53,31 @@ while True:
 
     elif requisicao.tipo == "listar_canais":
         resposta.mensagem = ", ".join(canais.keys())
+        
+    elif requisicao.tipo == "publicar":
+        canal = requisicao.canal
+        mensagem = requisicao.pub.mensagem
+        timestamp = requisicao.pub.timestamp_envio
 
-    socket.send(resposta.SerializeToString())
+            if canal not in canais:
+                resposta.mensagem = "Canal não existe"
+
+            else:
+                pub_msg = {
+                    "mensagem": mensagem,
+                    "timestamp_envio": timestamp,
+                    "timestamp_servidor": time.time()
+                }
+
+                pub_socket.send_string(f"{canal} {json.dumps(pub_msg)}")
+
+                salvar_publicacao({
+                    "canal": canal,
+                    "mensagem": mensagem,
+                    "timestamp": timestamp
+                })
+
+                resposta.mensagem = "Mensagem publicada com sucesso"
+
+        # ---------------- RESPOSTA ----------------
+        socket.send(resposta.SerializeToString())

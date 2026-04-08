@@ -35,3 +35,14 @@ services:
       replicas: 2
     stdin_open: true
     tty: true
+
+  pubsub-proxy:
+    image: python:3.11
+    container_name: pubsub-proxy
+    command: python proxy.py
+    volumes:
+      - .:/app
+    working_dir: /app
+    ports:
+      - 5557:5557
+      - 5558:5558

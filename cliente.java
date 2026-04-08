@@ -3,68 +3,138 @@ import org.zeromq.ZContext;
 import mensagens.MensagensProto.Requisicao;
 import mensagens.MensagensProto.Resposta;
 
+import java.util.*;
+
 public class Cliente {
 
     public static void main(String[] args) throws Exception {
 
         try (ZContext context = new ZContext()) {
-            ZMQ.Socket socket = context.createSocket(ZMQ.REQ);
-            socket.connect("tcp://broker:5555");
 
-            while (true) {
+            ZMQ.Socket req = context.createSocket(ZMQ.REQ);
+            req.connect("tcp://broker:5555");
 
-                // ── LOGIN ──────────────────────────────────────────────────
-                String usuario = "Pedro Henrique";
+            ZMQ.Socket sub = context.createSocket(ZMQ.SUB);
+            sub.connect("tcp://pubsub-proxy:5558");
 
-                Requisicao loginMsg = Requisicao.newBuilder()
-                        .setTipo("login")
-                        .setUsuario(usuario)
-                        .setTimestamp((int) (System.currentTimeMillis() / 1000))
-                        .build();
+            // ── THREAD PARA RECEBER MENSAGENS ─────────────────────
+            new Thread(() -> {
+                while (!Thread.currentThread().isInterrupted()) {
+                    String msg = sub.recvStr();
+                    String[] partes = msg.split(" ", 2);
 
-                socket.send(loginMsg.toByteArray(), 0);
+                    String canal = partes[0];
+                    String conteudo = partes[1];
 
-                byte[] respostaBytes = socket.recv(0);
-                Resposta respostaLogin = Resposta.parseFrom(respostaBytes);
-                System.out.println("Resposta do login: " + respostaLogin);
+                    long timestampRecebido = System.currentTimeMillis() / 1000;
 
-                // ── LISTAR CANAIS ──────────────────────────────────────────
-                Requisicao listarMsg = Requisicao.newBuilder()
-                        .setTipo("listar_canais")
-                        .setUsuario("")
-                        .setTimestamp((int) (System.currentTimeMillis() / 1000))
-                        .build();
-
-                socket.send(listarMsg.toByteArray(), 0);
-
-                respostaBytes = socket.recv(0);
-                Resposta respostaLista = Resposta.parseFrom(respostaBytes);
-                System.out.println("Resposta da lista de canais: " + respostaLista);
-
-                String listaStr = respostaLista.getMensagem();
-                String[] canaisArray = listaStr.split(",");
-                long quantidade = java.util.Arrays.stream(canaisArray)
-                        .map(String::trim)
-                        .filter(c -> !c.isEmpty())
-                        .count();
-
-                if (quantidade >= 5) {
-                    System.out.println("5 Canais foram criados!");
-                    break;
+                    System.out.println("\n📡 Mensagem recebida:");
+                    System.out.println("Canal: " + canal);
+                    System.out.println("Conteúdo: " + conteudo);
+                    System.out.println("Recebido em: " + timestampRecebido);
                 }
+            }).start();
 
-                // ── CRIAR CANAL ────────────────────────────────────────────
+            String usuario = "Pedro Henrique";
+
+            // ── LOGIN ─────────────────────────────────────────────
+            Requisicao loginMsg = Requisicao.newBuilder()
+                    .setTipo("login")
+                    .setUsuario(usuario)
+                    .setTimestamp(System.currentTimeMillis() / 1000)
+                    .build();
+
+            req.send(loginMsg.toByteArray(), 0);
+
+            byte[] respostaBytes = req.recv(0);
+            Resposta respostaLogin = Resposta.parseFrom(respostaBytes);
+            System.out.println("Login: " + respostaLogin.getMensagem());
+
+            // ── LISTAR CANAIS ────────────────────────────────────
+            Requisicao listarMsg = Requisicao.newBuilder()
+                    .setTipo("listar_canais")
+                    .setTimestamp(System.currentTimeMillis() / 1000)
+                    .build();
+
+            req.send(listarMsg.toByteArray(), 0);
+
+            respostaBytes = req.recv(0);
+            Resposta respostaLista = Resposta.parseFrom(respostaBytes);
+
+            System.out.println("Canais disponíveis: " + respostaLista.getMensagem());
+
+            List<String> canais = new ArrayList<>();
+
+            for (String c : respostaLista.getMensagem().split(",")) {
+                c = c.trim();
+                if (!c.isEmpty()) canais.add(c);
+            }
+
+            // ── GARANTIR PELO MENOS 5 CANAIS ─────────────────────
+            while (canais.size() < 5) {
+
+                String novoCanal = "Canal" + (canais.size() + 1);
+
                 Requisicao criarMsg = Requisicao.newBuilder()
                         .setTipo("criar_canal")
-                        .setCanal("Canal" + (quantidade + 1))
-                        .setTimestamp((int) (System.currentTimeMillis() / 1000))
+                        .setCanal(novoCanal)
+                        .setTimestamp(System.currentTimeMillis() / 1000)
                         .build();
 
-                socket.send(criarMsg.toByteArray(), 0);
+                req.send(criarMsg.toByteArray(), 0);
 
-                respostaBytes = socket.recv(0);
+                respostaBytes = req.recv(0);
                 Resposta respostaCriar = Resposta.parseFrom(respostaBytes);
-                System.out.println("Resposta criar canal: " + respostaCriar);
+
+                System.out.println("Criar canal: " + respostaCriar.getMensagem());
+
+                canais.add(novoCanal);
+            }
+
+            // ── INSCREVER EM ATÉ 3 CANAIS ────────────────────────
+            Collections.shuffle(canais);
+            List<String> inscritos = new ArrayList<>();
+
+            for (int i = 0; i < Math.min(3, canais.size()); i++) {
+                String canal = canais.get(i);
+                sub.subscribe(canal.getBytes());
+                inscritos.add(canal);
+                System.out.println("Inscrito no canal: " + canal);
+            }
+
+            Random random = new Random();
+
+            // ── LOOP INFINITO (ENVIO DE MENSAGENS) ───────────────
+            while (true) {
+
+                String canalEscolhido = canais.get(random.nextInt(canais.size()));
+
+                for (int i = 0; i < 10; i++) {
+
+                    String mensagem = "Msg " + random.nextInt(1000);
+
+                    // 🔹 USANDO O Publicacao CORRETAMENTE
+                    Requisicao pubMsg = Requisicao.newBuilder()
+                            .setTipo("publicar")
+                            .setCanal(canalEscolhido)
+                            .setTimestamp(System.currentTimeMillis() / 1000)
+                            .setPub(
+                                    Requisicao.Publicacao.newBuilder()
+                                            .setMensagem(mensagem)
+                                            .setTimestampEnvio(System.currentTimeMillis() / 1000)
+                                            .build()
+                            )
+                            .build();
+
+                    req.send(pubMsg.toByteArray(), 0);
+
+                    respostaBytes = req.recv(0);
+                    Resposta respostaPub = Resposta.parseFrom(respostaBytes);
+
+                    System.out.println("Publicação: " + respostaPub.getMensagem());
+
+                    Thread.sleep(1000);
+                }
             }
         }
     }
