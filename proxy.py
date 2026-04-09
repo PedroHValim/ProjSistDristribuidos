@@ -10,4 +10,4 @@ xpub.bind("tcp://*:5558")
 
 print("Proxy Pub/Sub rodando...")
 
-zmq.proxy(sub, pub)
+zmq.proxy(sub, xpub)

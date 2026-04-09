@@ -2,6 +2,7 @@ import zmq
 import mensagens_pb2
 import json
 import time
+import os
 
 context = zmq.Context()
 socket = context.socket(zmq.REP)
@@ -13,14 +14,24 @@ pub_socket.connect("tcp://pubsub-proxy:5557")
 usuarios_aceitos = ["Pedro Henrique","Leonardo","João","Matheus"]
 usuarios_logados = []
 
-canais = {
-    "Canal1": []
-}
+CANAIS_FILE = "/data/canais.json"
+PUBLICACOES_FILE = "/data/publicacoes.jsonl"
 
+def carregar_canais():
+    if os.path.exists(CANAIS_FILE):
+        with open(CANAIS_FILE, "r") as f:
+            return json.load(f)
+    return {"Canal1": []}
+
+def salvar_canais(canais):
+    with open(CANAIS_FILE, "w") as f:
+        json.dump(canais, f)
+
+canais = carregar_canais()
 #---------------------------
 
 def salvar_publicacao(data):
-    with open("publicacoes.jsonl", "a") as f:
+    with open(PUBLICACOES_FILE, "a") as f:
         f.write(json.dumps(data) + "\n")
 
 
@@ -51,40 +62,36 @@ while True:
             resposta.mensagem = "Canal já existe"
         else:
             canais[canal] = []
+            salvar_canais(canais)
             resposta.mensagem = f"Canal '{canal}' criado com sucesso"
 
     elif requisicao.tipo == "listar_canais":
+        canais = carregar_canais()
         resposta.mensagem = ", ".join(canais.keys())
         
-    elif requisicao.tipo == "publicar": 
+    elif requisicao.tipo == "publicar":
+        canais = carregar_canais()
         canal = requisicao.canal
-
-    if not requisicao.HasField("pub"):
-        resposta.mensagem = "Erro: publicação inválida"
-
-    else:
-        mensagem = requisicao.pub.mensagem
-        timestamp = requisicao.pub.timestamp_envio
-
-        if canal not in canais:
+        if not requisicao.HasField("pub"):
+            resposta.mensagem = "Erro: publicação inválida"
+        elif canal not in canais:
             resposta.mensagem = "Canal não existe"
-
         else:
+            mensagem = requisicao.pub.mensagem
+            timestamp = requisicao.pub.timestamp_envio
             pub_msg = {
                 "mensagem": mensagem,
                 "timestamp_envio": timestamp,
-                "timestamp_servidor": time.time()
+                "timestamp_servidor": int(time.time())
             }
-
             pub_socket.send_string(f"{canal} {json.dumps(pub_msg)}")
-
             salvar_publicacao({
                 "canal": canal,
                 "mensagem": mensagem,
                 "timestamp": timestamp
             })
-
             resposta.mensagem = "Mensagem publicada com sucesso"
 
     # ---------------- RESPOSTA ----------------
+    resposta.timestamp = int(time.time())
     socket.send(resposta.SerializeToString())

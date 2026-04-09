@@ -18,6 +18,7 @@ services:
       dockerfile: Dockerfile_Server
     volumes:
       - ./servidor.py:/app/servidor.py
+      - dados_servidor:/data 
     depends_on:
       - broker
       - pubsub-proxy
@@ -41,7 +42,6 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile_Proxy
-    image: python:3.11
     container_name: pubsub-proxy
     command: python proxy.py
     volumes:
@@ -50,3 +50,6 @@ services:
     ports:
       - 5557:5557
       - 5558:5558
+
+volumes:
+  dados_servidor: 

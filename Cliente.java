@@ -2,7 +2,7 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZContext;
 import mensagens.MensagensProto.Requisicao;
 import mensagens.MensagensProto.Resposta;
-
+import org.json.JSONObject;
 import java.util.*;
 
 public class Cliente {
@@ -17,19 +17,6 @@ public class Cliente {
             ZMQ.Socket sub = context.createSocket(ZMQ.SUB);
             sub.connect("tcp://pubsub-proxy:5558");
 
-            String[] canais = respostaLista.getMensagem().split(",");
-            List<String> inscritos = new ArrayList<>();
-
-            for (String canal : canais) {
-                canal = canal.trim();
-
-                if (!canal.isEmpty() && inscritos.size() < 3) {
-                    sub.subscribe(canal.getBytes());
-                    inscritos.add(canal);
-
-                    System.out.println("Inscrito no canal: " + canal);
-                }
-            }
 
             // ── THREAD PARA RECEBER MENSAGENS ─────────────────────
             new Thread(() -> {
@@ -38,14 +25,17 @@ public class Cliente {
                     String[] partes = msg.split(" ", 2);
 
                     String canal = partes[0];
-                    String conteudo = partes[1];
-
+                    JSONObject json = new JSONObject(partes[1]);
+                    
+                    String mensagem = json.getString("mensagem");
+                    long timestampEnvio = json.getLong("timestamp_envio");
                     long timestampRecebido = System.currentTimeMillis() / 1000;
 
                     System.out.println("\n📡 Mensagem recebida:");
                     System.out.println("Canal: " + canal);
-                    System.out.println("Conteúdo: " + conteudo);
-                    System.out.println("Recebido em: " + timestampRecebido);
+                    System.out.println("Mensagem: " + mensagem);
+                    System.out.println("Enviada em: " + timestampEnvio);
+                    System.out.println("Recebida em: " + timestampRecebido);
                 }
             }).start();
 

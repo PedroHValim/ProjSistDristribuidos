@@ -2,20 +2,22 @@ syntax = "proto3";
 
 package mensagens;
 
+option java_outer_classname = "MensagensProto"; //Isso não vai deixar o nome mudar, por conta do nome do arquivo
+
 message Requisicao {
   string tipo = 1;
   string usuario = 2;
   string canal = 3;
   int64 timestamp = 4;
 
-  Publicacao pub = 5; // 🆕 opcional
-}
-
-message Publicacao {
-  string mensagem = 1;
-  int64 timestamp_envio = 2;
+  message Publicacao {
+    string mensagem = 1;
+    int64 timestamp_envio = 2;
+  }
+  Publicacao pub = 5;
 }
 
 message Resposta {
   string mensagem = 1;
+  int64 timestamp = 2;
 }
