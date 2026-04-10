@@ -84,7 +84,7 @@ while True:
                 "timestamp_envio": timestamp,
                 "timestamp_servidor": int(time.time())
             }
-            pub_socket.send_string(f"{canal} {json.dumps(pub_msg)}")
+            pub_socket.send_string(f"{canal}|{json.dumps(pub_msg)}")
             salvar_publicacao({
                 "canal": canal,
                 "mensagem": mensagem,

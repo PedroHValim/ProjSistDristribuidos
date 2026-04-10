@@ -22,7 +22,7 @@ public class Cliente {
             new Thread(() -> {
                 while (!Thread.currentThread().isInterrupted()) {
                     String msg = sub.recvStr();
-                    String[] partes = msg.split(" ", 2);
+                    String[] partes = msg.split("\\|", 2);
 
                     String canal = partes[0];
                     JSONObject json = new JSONObject(partes[1]);
@@ -101,9 +101,11 @@ public class Cliente {
 
             for (int i = 0; i < Math.min(3, canais.size()); i++) {
                 String canal = canais.get(i);
-                sub.subscribe(canal.getBytes());
-                inscritos.add(canal);
-                System.out.println("Inscrito no canal: " + canal);
+                if (!inscritos.contains(canal)) {
+                    sub.subscribe(canal.getBytes());
+                    inscritos.add(canal);
+                    System.out.println("Inscrito no canal: " + canal);
+                }
             }
 
             Random random = new Random();
