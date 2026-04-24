@@ -7,6 +7,7 @@ import java.util.*;
 
 public class Cliente {
 
+    private static int clock = 0;
     public static void main(String[] args) throws Exception {
 
         try (ZContext context = new ZContext()) {
@@ -26,7 +27,8 @@ public class Cliente {
 
                     String canal = partes[0];
                     JSONObject json = new JSONObject(partes[1]);
-                    
+                    int clockRecebido = json.getInt("clock");
+                    clock = Math.max(clock, clockRecebido);
                     String mensagem = json.getString("mensagem");
                     long timestampEnvio = json.getLong("timestamp_envio");
                     long timestampRecebido = System.currentTimeMillis() / 1000;
@@ -42,29 +44,34 @@ public class Cliente {
             String usuario = "Pedro Henrique";
 
             // ── LOGIN ─────────────────────────────────────────────
+            clock++;
             Requisicao loginMsg = Requisicao.newBuilder()
                     .setTipo("login")
                     .setUsuario(usuario)
                     .setTimestamp(System.currentTimeMillis() / 1000)
+                    .setClock(clock)
                     .build();
 
             req.send(loginMsg.toByteArray(), 0);
 
             byte[] respostaBytes = req.recv(0);
             Resposta respostaLogin = Resposta.parseFrom(respostaBytes);
+            clock = Math.max(clock, respostaLogin.getClock());
             System.out.println("Login: " + respostaLogin.getMensagem());
 
             // ── LISTAR CANAIS ────────────────────────────────────
+            clock++;
             Requisicao listarMsg = Requisicao.newBuilder()
                     .setTipo("listar_canais")
                     .setTimestamp(System.currentTimeMillis() / 1000)
+                    .setClock(clock)
                     .build();
 
             req.send(listarMsg.toByteArray(), 0);
 
             respostaBytes = req.recv(0);
             Resposta respostaLista = Resposta.parseFrom(respostaBytes);
-
+            clock = Math.max(clock, respostaLista.getClock());
             System.out.println("Canais disponíveis: " + respostaLista.getMensagem());
 
             List<String> canais = new ArrayList<>();
@@ -78,18 +85,19 @@ public class Cliente {
             while (canais.size() < 5) {
 
                 String novoCanal = "Canal" + (canais.size() + 1);
-
+                clock++;
                 Requisicao criarMsg = Requisicao.newBuilder()
                         .setTipo("criar_canal")
                         .setCanal(novoCanal)
                         .setTimestamp(System.currentTimeMillis() / 1000)
+                        .setClock(clock)
                         .build();
 
                 req.send(criarMsg.toByteArray(), 0);
 
                 respostaBytes = req.recv(0);
                 Resposta respostaCriar = Resposta.parseFrom(respostaBytes);
-
+                clock = Math.max(clock, respostaCriar.getClock());
                 System.out.println("Criar canal: " + respostaCriar.getMensagem());
 
                 canais.add(novoCanal);
@@ -118,15 +126,17 @@ public class Cliente {
                 for (int i = 0; i < 10; i++) {
 
                     String mensagem = "Msg " + random.nextInt(1000);
-
+                    clock++;
                     Requisicao pubMsg = Requisicao.newBuilder()
                             .setTipo("publicar")
                             .setCanal(canalEscolhido)
                             .setTimestamp(System.currentTimeMillis() / 1000)
+                            .setClock(clock)
                             .setPub(
                                     Requisicao.Publicacao.newBuilder()
                                             .setMensagem(mensagem)
                                             .setTimestampEnvio(System.currentTimeMillis() / 1000)
+                                            .setClock(clock)
                                             .build()
                             )
                             .build();
@@ -135,7 +145,7 @@ public class Cliente {
 
                     respostaBytes = req.recv(0);
                     Resposta respostaPub = Resposta.parseFrom(respostaBytes);
-
+                    clock = Math.max(clock, respostaPub.getClock());
                     System.out.println("Publicação: " + respostaPub.getMensagem());
 
                     Thread.sleep(1000);

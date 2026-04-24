@@ -50,6 +50,15 @@ services:
     ports:
       - 5557:5557
       - 5558:5558
+  
+  reference:
+    build: .
+    container_name: reference
+    command: python reference.py
+    volumes:
+      - ./reference.py:/app/reference.py
+    ports:
+      - "6000:6000"
 
 volumes:
   dados_servidor: 
