@@ -3,6 +3,7 @@ import mensagens_pb2
 import json
 import time
 import os
+import threading
 
 context = zmq.Context()
 
@@ -14,6 +15,12 @@ pub_socket.connect("tcp://pubsub-proxy:5557")
 
 ref_socket = context.socket(zmq.REQ)
 ref_socket.connect("tcp://reference:6000")
+
+coordenador = None
+SERVER_PORT = int(os.getenv("SERVER_PORT", 7000)) #Pega a variável q eu declarei lá no '.yml' ou usa a padrão 7000
+
+inter_socket = context.socket(zmq.REP)
+inter_socket.bind(f"tcp://*:{SERVER_PORT}")
 
 usuarios_aceitos = ["Pedro Henrique","Leonardo","João","Matheus"]
 usuarios_logados = []
@@ -50,6 +57,48 @@ def salvar_publicacao(data):
     with open(PUBLICACOES_FILE, "a") as f:
         f.write(json.dumps(data) + "\n")
 
+#---------------------------
+def eleger_coordenador():
+    global coordenador
+    ref_socket.send_json({"tipo": "list"})
+    lista = ref_socket.recv_json()
+    
+    if lista:
+        eleito = max(lista, key=lambda s: s["rank"])
+        coordenador = eleito["nome"]
+        
+        pub_socket.send_string(f"servers {coordenador}")
+        print(f"[ELEIÇÃO] Coordenador eleito: {coordenador}")
+
+#---------------------------
+
+def sincronizar_relogio(): #Berkeley
+    global clock, coordenador
+    if coordenador == nome_servidor:
+        return
+    try:
+        sync_socket = context.socket(zmq.REQ)
+        sync_socket.setsockopt(zmq.RCVTIMEO, 3000)
+        sync_socket.connect(f"tcp://{coordenador}:{SERVER_PORT}")
+        sync_socket.send_json({"tipo": "relogio"})
+        resposta = sync_socket.recv_json()
+        clock = resposta.get("clock", clock)
+        print(f"[BERKELEY] Relógio sincronizado: {clock}")
+    except zmq.error.Again:
+        print(f"[BERKELEY] Coordenador {coordenador} não respondeu, iniciando eleição")
+        eleger_coordenador()
+    finally:
+        sync_socket.close()
+
+#---------------------------
+
+def responder_inter_servidores():
+    while True:
+        msg = inter_socket.recv_json()
+        if msg.get("tipo") == "relogio":
+            inter_socket.send_json({"clock": clock})
+
+threading.Thread(target=responder_inter_servidores, daemon=True).start()
 
 #-------PRINCIPAL------------
 
@@ -115,7 +164,7 @@ while True:
             resposta.mensagem = "Mensagem publicada com sucesso"
 
 #----------- verificação do heartbeater ----------------
-    if contador_mensagens % 10 == 0:
+    if contador_mensagens % 15 == 0:
         ref_socket.send_json({
             "tipo": "heartbeat",
             "nome": nome_servidor
@@ -124,8 +173,11 @@ while True:
         resposta_hb = ref_socket.recv_json()
 
         if resposta_hb.get("status") == "OK":
-            tempo_correto = resposta_hb.get("time")
-            print(f"[HEARTBEAT] OK - tempo: {tempo_correto}")
+            print(f"[HEARTBEAT] OK")
+            if coordenador is None:
+                eleger_coordenador()
+            else:
+                sincronizar_relogio()
 #----------- verificação do heartbeater ----------------
 
     # ---------------- RESPOSTA ----------------

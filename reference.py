@@ -78,7 +78,6 @@ while True:
 
             resposta = {
                 "status": "OK",
-                "time": int(time.time())
             }
         else:
             resposta = {

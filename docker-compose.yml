@@ -24,6 +24,10 @@ services:
       - pubsub-proxy
     deploy:
       replicas: 2
+    environment:
+    - SERVER_PORT=7000
+    ports:
+      - "7000-7001:7000"
 
   cliente:
     build:
