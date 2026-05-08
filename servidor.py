@@ -17,10 +17,22 @@ ref_socket = context.socket(zmq.REQ)
 ref_socket.connect("tcp://reference:6000")
 
 coordenador = None
+
 SERVER_PORT = int(os.getenv("SERVER_PORT", 7000)) #Pega a variável q eu declarei lá no '.yml' ou usa a padrão 7000
 
 inter_socket = context.socket(zmq.REP)
 inter_socket.bind(f"tcp://*:{SERVER_PORT}")
+
+REPL_PORT = SERVER_PORT + 100
+
+repl_socket = context.socket(zmq.REP)
+repl_socket.bind(f"tcp://*:{REPL_PORT}")
+
+HIST_PORT = SERVER_PORT + 200
+
+hist_socket = context.socket(zmq.REP)
+hist_socket.bind(f"tcp://*:{HIST_PORT}")
+
 
 usuarios_aceitos = ["Pedro Henrique","Leonardo","João","Matheus"]
 usuarios_logados = []
@@ -95,10 +107,94 @@ def sincronizar_relogio(): #Berkeley
 def responder_inter_servidores():
     while True:
         msg = inter_socket.recv_json()
+        
         if msg.get("tipo") == "relogio":
             inter_socket.send_json({"clock": clock})
+        
+        elif msg.get("tipo") == "replicar":
+            # backup recebe publicação e salva
+            salvar_publicacao(msg["data"])
+            print(f"[REPLICAÇÃO] Publicação recebida e salva")
+            inter_socket.send_json({"status": "OK"})
+        
+        elif msg.get("tipo") == "replicar_todos":
+            # coordenador recebe de um backup e replica para todos
+            salvar_publicacao(msg["data"])
+            replicar_para_backups(msg["data"])
+            inter_socket.send_json({"status": "OK"})
 
-threading.Thread(target=responder_inter_servidores, daemon=True).start()
+#---------------------------
+
+def replicar_para_backups(data):
+    if coordenador != nome_servidor:
+        return  # só o coordenador replica para os backups
+    
+    ref_socket.send_json({"tipo": "list"})
+    lista = ref_socket.recv_json()
+    
+    for servidor in lista:
+        if servidor["nome"] != nome_servidor:
+            try:
+                rep_socket = context.socket(zmq.REQ)
+                rep_socket.setsockopt(zmq.RCVTIMEO, 3000)
+                rep_socket.connect(f"tcp://{servidor['nome']}:{REPL_PORT}")
+                rep_socket.send_json({"tipo": "replicar", "data": data})
+                rep_socket.recv_json()
+                print(f"[REPLICAÇÃO] Enviado para {servidor['nome']}")
+            except zmq.error.Again:
+                print(f"[REPLICAÇÃO] Falhou para {servidor['nome']}")
+            finally:
+                rep_socket.close()
+
+def encaminhar_para_coordenador(data):
+    if coordenador is None or coordenador == nome_servidor:
+        return
+    try:
+        enc_socket = context.socket(zmq.REQ)
+        enc_socket.setsockopt(zmq.RCVTIMEO, 3000)
+        enc_socket.connect(f"tcp://{coordenador}:{REPL_PORT}")
+        enc_socket.send_json({"tipo": "replicar_todos", "data": data})
+        enc_socket.recv_json()
+        print(f"[REPLICAÇÃO] Encaminhado para coordenador {coordenador}")
+    except zmq.error.Again:
+        print(f"[REPLICAÇÃO] Coordenador não respondeu")
+    finally:
+        enc_socket.close()
+
+def responder_replicacao():
+    while True:
+        msg = repl_socket.recv_json()
+        if msg.get("tipo") in ("replicar", "replicar_todos"):
+            salvar_publicacao(msg["data"])
+            if msg.get("tipo") == "replicar_todos":
+                replicar_para_backups(msg["data"])
+            print(f"[REPLICAÇÃO] Publicação recebida e salva")
+            repl_socket.send_json({"status": "OK"})
+        elif msg.get("tipo") == "historico":
+            historico = []
+            if os.path.exists(PUBLICACOES_FILE):
+                with open(PUBLICACOES_FILE, "r") as f:
+                    for linha in f:
+                        historico.append(json.loads(linha))
+            repl_socket.send_json(historico)
+            return  # importante para não cair no send_json abaixo
+
+threading.Thread(target=responder_replicacao, daemon=True).start()
+
+#---------------------------
+
+def responder_historico():
+    while True:
+        msg = hist_socket.recv_json()
+        if msg.get("tipo") == "historico":
+            historico = []
+            if os.path.exists(PUBLICACOES_FILE):
+                with open(PUBLICACOES_FILE, "r") as f:
+                    for linha in f:
+                        historico.append(json.loads(linha))
+            hist_socket.send_json(historico)
+
+threading.Thread(target=responder_historico, daemon=True).start()
 
 #-------PRINCIPAL------------
 
@@ -159,8 +255,16 @@ while True:
             salvar_publicacao({
                 "canal": canal,
                 "mensagem": mensagem,
-                "timestamp": timestamp
+                "timestamp": timestamp,
+                "usuario": requisicao.usuario
             })
+
+            data_replicar = {"canal": canal, "mensagem": mensagem, "timestamp": timestamp}
+            if coordenador == nome_servidor:
+                replicar_para_backups(data_replicar)   # sou primário, replico
+            else:
+                encaminhar_para_coordenador(data_replicar)
+
             resposta.mensagem = "Mensagem publicada com sucesso"
 
 #----------- verificação do heartbeater ----------------

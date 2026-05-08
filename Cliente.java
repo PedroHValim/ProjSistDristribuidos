@@ -10,6 +10,16 @@ public class Cliente {
     private static int clock = 0;
     public static void main(String[] args) throws Exception {
 
+        String usuario = System.getenv("USUARIO") != null ? System.getenv("USUARIO") : "Pedro Henrique";
+
+        String[] mensagens = {
+            "Oi, tudo bem?", "Tudo ótimo! E você?",
+            "Alguém sabe o horário?", "São 15h aqui!",
+            "Qual o canal mais ativo?", "Acho que é o Canal5!",
+            "Alguém viu o Pedro?", "Ele estava no Canal3 agora pouco.",
+            "Bom dia pessoal!", "Bom dia!", "Até mais!", "Tchau, até logo!"
+        };        
+
         try (ZContext context = new ZContext()) {
 
             ZMQ.Socket req = context.createSocket(ZMQ.REQ);
@@ -41,7 +51,6 @@ public class Cliente {
                 }
             }).start();
 
-            String usuario = "Pedro Henrique";
 
             // ── LOGIN ─────────────────────────────────────────────
             clock++;
@@ -125,11 +134,12 @@ public class Cliente {
 
                 for (int i = 0; i < 10; i++) {
 
-                    String mensagem = "Msg " + random.nextInt(1000);
+                    String mensagem = mensagens[random.nextInt(mensagens.length)];
                     clock++;
                     Requisicao pubMsg = Requisicao.newBuilder()
                             .setTipo("publicar")
                             .setCanal(canalEscolhido)
+                            .setUsuario(usuario) 
                             .setTimestamp(System.currentTimeMillis() / 1000)
                             .setClock(clock)
                             .setPub(

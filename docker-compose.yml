@@ -28,17 +28,32 @@ services:
     - SERVER_PORT=7000
     ports:
       - "7000-7001:7000"
+      - "7100-7101:7100"
+      - "7200-7201:7200"
 
-  cliente:
+  cliente-1:
     build:
       context: .
       dockerfile: Dockerfile_Client
     volumes:
-      - ./cliente.java:/app/cliente.java
+      - ./Cliente.java:/app/Cliente.java
     depends_on:
       - servidor
-    deploy:
-      replicas: 2
+    environment:
+      - USUARIO=Pedro Henrique
+    stdin_open: true
+    tty: true
+
+  cliente-2:
+    build:
+      context: .
+      dockerfile: Dockerfile_Client
+    volumes:
+      - ./Cliente.java:/app/Cliente.java
+    depends_on:
+      - servidor
+    environment:
+      - USUARIO=Leonardo
     stdin_open: true
     tty: true
 
