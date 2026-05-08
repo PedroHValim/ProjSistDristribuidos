@@ -30,5 +30,12 @@ Ao se conectar, cada bot automaticamente:
 2. Se inscreve em até 3 canais aleatórios via PUB/SUB
 3. Entra em loop infinito escolhendo um canal aleatório e enviando 10 mensagens com intervalo de 1 segundo entre cada uma
 
+### 🔹 Replicação (Parte 5)
+O método escolhido para replicação foi a **Replicação Passiva (Primary-Backup)**. Neste modelo, o servidor eleito como coordenador na Parte 4 assume o papel de primário, sendo responsável por propagar as publicações para todos os servidores backup.
+
+O fluxo de replicação funciona da seguinte forma: quando qualquer servidor recebe uma publicação de um cliente, ele salva localmente e em seguida trata a replicação conforme seu papel. Se for o coordenador (primário), ele envia a publicação diretamente para todos os backups via socket REQ/REP dedicado na porta 7100. Se for um backup, ele encaminha a publicação ao coordenador, que por sua vez replica para os demais servidores.
+
+Para isolar o tráfego de replicação do tráfego de atendimento aos clientes, foi criada uma porta exclusiva para comunicação entre servidores (7100), com uma thread dedicada para processar essas requisições em paralelo. O histórico completo de mensagens pode ser consultado via porta 7200, também gerenciada por uma thread separada. Os dados são compartilhados entre as réplicas por meio de um volume Docker persistente, garantindo que todos os servidores tenham acesso ao mesmo estado mesmo após reinicializações.
+
 ## 🚀 Considerações Finais
 O projeto atende aos requisitos propostos, utilizando comunicação distribuída, execução automatizada via bots e estrutura preparada para expansão futura. O ambiente é totalmente containerizado via Docker Compose, com múltiplas réplicas de servidor e cliente rodando simultaneamente e compartilhando estado via volume persistente.
