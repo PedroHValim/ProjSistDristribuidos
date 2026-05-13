@@ -71,6 +71,7 @@ def salvar_publicacao(data):
 
 #---------------------------
 def eleger_coordenador():
+    print("Elegendo Coordenador!!!!!!!!!!!")
     global coordenador
     ref_socket.send_json({"tipo": "list"})
     lista = ref_socket.recv_json()
@@ -158,6 +159,7 @@ def encaminhar_para_coordenador(data):
         print(f"[REPLICAÇÃO] Encaminhado para coordenador {coordenador}")
     except zmq.error.Again:
         print(f"[REPLICAÇÃO] Coordenador não respondeu")
+        eleger_coordenador()
     finally:
         enc_socket.close()
 

@@ -26,10 +26,6 @@ services:
       replicas: 2
     environment:
     - SERVER_PORT=7000
-    ports:
-      - "7000-7001:7000"
-      - "7100-7101:7100"
-      - "7200-7201:7200"
 
   cliente-1:
     build:
